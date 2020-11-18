@@ -337,12 +337,14 @@ class Chess:
                     self.change_board(movement)
                     self.saveboard = copy.deepcopy(self.chessboard)
                     self.turn += 1
-                    self.plot_board()
                     if self.is_check():
                         print('Check!')
                         if self.is_checkmate():
                             print('Checkmate!')
                             self.playing = False
+                    print(self.chessboard)
+                    self.plot_board()
+
             else:
                 print("That's not a valid move!")
 
