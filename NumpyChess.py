@@ -5,7 +5,8 @@ import turtle
 
 class Chess:
     turn = 1
-    movelist = []
+    moveListRaw = []
+    moveList = []
     playing = True
     chessboard = np.zeros((8, 8), dtype='int32')
     saveboard = copy.deepcopy(chessboard)
@@ -47,6 +48,8 @@ class Chess:
                 coord += [int(string[1]) - 1]
                 coord += [self.fileDict[string[0]]]
                 return coord
+            elif string == "00" or string == "000":
+                return string
             else:
                 print("That's not a valid coordinate!")
 
@@ -105,6 +108,26 @@ class Chess:
             return True
         else:
             return False
+
+    def legal_castle(self, castle):
+        king = list(self.array_index(10 * ((self.turn) % 2) + 14)[0])
+        self.turn -= 1
+        if castle == "000":
+            target = [king[0], 0]
+        if castle == "00":
+            target = [king[0], 7]
+        if self.is_check():
+            self.turn += 1
+            return False
+        self.turn += 1
+        for x in range(len(self.moveListRaw)):
+            if (x+1) % 2 == self.turn % 2:
+                if self.moveListRaw[x][3] == 'K':
+                    return False
+        if self.pieceDict[self.chessboard[target[0], target[1]]] == 'R':
+            if self.no_pieces_between(king, target):
+                return True
+        return False
 
     def legal_pawn(self, move):
         start, target = move[0], move[1]
@@ -206,6 +229,7 @@ class Chess:
         self.chessboard[start[0], start[1]] = 0
 
     def move_logger(self, move):
+        self.moveListRaw += [move]
         val = self.chessboard[move[0][0], move[0][1]]
         piece = self.pieceDict[val]
         takes = ""
@@ -316,44 +340,74 @@ class Chess:
         else:
             return False
 
-    def get_piece_at(self, x, y):
-        return self.chessboard[x, y]
-
     def mainloop(self):
         self.plot_board()
         while self.playing:
             startingSquare = self.square_converter()
-            while self.not_my_own_piece(startingSquare):
-                print("Your piece isn't there!")
-                startingSquare = self.square_converter()
-            targetingSquare = self.square_converter(prompt="Type the coordinates of the square to move it to.")
-            movement = self.move_converter(startingSquare, targetingSquare)
-            if self.is_legal_move(movement):
-                if self.king_dies(movement):
-                    print("That's' not a valid move, you can't hang your king!")
+            if startingSquare=="00" or startingSquare=="000":
+                if self.legal_castle(startingSquare):
+                    self.castle(startingSquare)
+            elif self.is_my_own_piece(startingSquare):
+                targetingSquare = self.square_converter(prompt="Type the coordinates of the square to move it to.")
+                movement = self.move_converter(startingSquare, targetingSquare)
+                if self.is_legal_move(movement):
+                    if self.king_dies(movement):
+                        print("That's' not a valid move, you can't hang your king!")
+                    else:
+                        self.make_move(movement)
                 else:
-                    x = [self.move_logger(movement)]
-                    self.movelist += x
-                    self.change_board(movement)
-                    self.saveboard = copy.deepcopy(self.chessboard)
-                    self.turn += 1
-                    if self.is_check():
-                        print('Check!')
-                        if self.is_checkmate():
-                            print('Checkmate!')
-                            self.playing = False
-                    print(self.chessboard)
-                    self.plot_board()
-
+                    print("That's not a valid move!")
             else:
-                print("That's not a valid move!")
+                print("Your piece isn't there!")
+    def castle(self,castle):
+        self.moveListRaw+=[castle]
+        self.moveList+=[castle]
+        king = list(self.array_index(10 * ((self.turn) % 2) + 14)[0])
+        if castle=="000":
+            kingVal=self.chessboard[king[0],king[1]]
+            rookVal=self.chessboard[king[0],0]
+            self.chessboard[king[0], king[1]-1]=rookVal
+            self.chessboard[king[0], king[1]-2]=kingVal
+            self.chessboard[king[0], king[1]]=0
+            self.chessboard[king[0], 0]=0
+        else:
+            kingVal = self.chessboard[king[0], king[1]]
+            rookVal = self.chessboard[king[0], 7]
+            self.chessboard[king[0], king[1] + 1] = rookVal
+            self.chessboard[king[0], king[1] + 2] = kingVal
+            self.chessboard[king[0], king[1]] = 0
+            self.chessboard[king[0], 7] = 0
+        self.saveboard = copy.deepcopy(self.chessboard)
+        self.turn += 1
+        if self.is_check():
+            print('Check!')
+            if self.is_checkmate():
+                print('Checkmate!')
+                self.playing = False
+        print(self.chessboard)
+        self.plot_board()
 
-    def draw(self,pen):
+    def make_move(self, movement):
+        self.moveListRaw += [movement]
+        x = [self.move_logger(movement)]
+        self.moveList += x
+        self.change_board(movement)
+        self.saveboard = copy.deepcopy(self.chessboard)
+        self.turn += 1
+        if self.is_check():
+            print('Check!')
+            if self.is_checkmate():
+                print('Checkmate!')
+                self.playing = False
+        print(self.chessboard)
+        self.plot_board()
+
+    def draw(self, pen):
         for i in range(4):
             pen.forward(60)
             pen.left(90)
 
-    def stamp_piece(self, piece,pen,sc):
+    def stamp_piece(self, piece, pen, sc):
         if piece:
             image = 'ChessImages/' + self.imageDict[piece]
             if image not in sc.getshapes():
@@ -362,7 +416,7 @@ class Chess:
             return pen.stamp()
 
     def plot_board(self):
-        turtle.TurtleScreen._RUNNING=True
+        turtle.TurtleScreen._RUNNING = True
         sc = turtle.Screen()
         sc.tracer(0, 0)
         pen = turtle.Turtle()
@@ -389,12 +443,12 @@ class Chess:
         pen.hideturtle()
         sc.exitonclick()
 
-    def fill_board(self,pen,sc):
-        i=(self.turn+1)%2
+    def fill_board(self, pen, sc):
+        i = (self.turn + 1) % 2
         for x in range(8):
             for y in range(8):
                 pen.setpos(-210 + 60 * x, -210 + 60 * y)
-                self.stamp_piece(self.chessboard[(-2*i+1)*y-i, (-2*i+1)*x-i],pen,sc)
+                self.stamp_piece(self.chessboard[(-2 * i + 1) * y - i, (-2 * i + 1) * x - i], pen, sc)
 
 
 Chessgame = Chess()
